@@ -1,10 +1,13 @@
 [package]
-name = "menmos-sdk"
+name = "menmos"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1"
 menmos-client = "0.0.10"
+snafu = "0.7"
+
+# TODO: Ditch or make dev dependency?
+tokio = {version = "1", features = ["full"]}
