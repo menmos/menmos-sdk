@@ -1,3 +1,6 @@
+mod dir;
+use dir::MenmosDirectory;
+
 mod file;
 use file::MenmosFile;
 
@@ -22,13 +25,7 @@ impl MenmosFs {
     }
 
     pub async fn remove_file<S: AsRef<str>>(&self, id: S) -> Result<()> {
-        let meta = self
-            .client
-            .get_meta(id.as_ref())
-            .await
-            .with_whatever_context(|e| format!("failed to get file meta: {e}"))?;
-
-        match meta {
+        match util::get_meta_if_exists(&self.client, id.as_ref()).await? {
             Some(meta) => {
                 if meta.blob_type == Type::Directory {
                     whatever!("can't delete blob: is directory");
@@ -41,5 +38,9 @@ impl MenmosFs {
             }
             None => Ok(()),
         }
+    }
+
+    pub async fn create_dir(&self, metadata: FileMetadata) -> Result<MenmosDirectory> {
+        MenmosDirectory::create(self.client.clone(), metadata).await
     }
 }

@@ -20,6 +20,7 @@ fn make_file_meta(m: FileMetadata) -> Meta {
     }
 }
 
+#[derive(Clone)]
 pub struct MenmosFile {
     blob_id: String,
     client: ClientRC,
@@ -43,26 +44,16 @@ impl MenmosFile {
     }
 
     pub async fn open(client: ClientRC, id: &str) -> Result<Self> {
-        let metadata = client
-            .get_meta(id)
-            .await
-            .with_whatever_context(|e| format!("failed to fetch the file metadata: {}", e))?;
-
-        match metadata {
-            Some(metadata) => {
-                if metadata.blob_type == Type::Directory {
-                    whatever!("is directory");
-                }
-                Ok(Self {
-                    blob_id: String::from(id),
-                    client,
-                    offset: 0,
-                })
-            }
-            None => {
-                whatever!("file not found");
-            }
+        let metadata = util::get_meta(&client, id).await?;
+        if metadata.blob_type == Type::Directory {
+            whatever!("is directory");
         }
+
+        Ok(Self {
+            blob_id: String::from(id),
+            client,
+            offset: 0,
+        })
     }
 
     pub fn id(&self) -> &str {
