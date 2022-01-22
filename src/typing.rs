@@ -5,6 +5,7 @@ use menmos_client::Client;
 
 pub type ClientRC = Arc<Client>;
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FileMetadata {
     /// The name of this file/folder. Does not need to be unique.
     pub name: String,
@@ -20,4 +21,37 @@ pub struct FileMetadata {
 
     /// This file's size, in bytes.
     pub size: u64,
+}
+
+impl FileMetadata {
+    pub fn new<S: Into<String>>(name: S) -> Self {
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
+    }
+
+    #[must_use]
+    pub fn with_tag<S: Into<String>>(mut self, tag: S) -> Self {
+        self.tags.push(tag.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_meta<K: Into<String>, V: Into<String>>(mut self, key: K, value: V) -> Self {
+        self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_parent<P: Into<String>>(mut self, parent: P) -> Self {
+        self.parents.push(parent.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_size(mut self, size: u64) -> Self {
+        self.size = size;
+        self
+    }
 }
