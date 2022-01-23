@@ -41,8 +41,6 @@ pub fn scroll_query(
                 return Ok(None);
             }
 
-            let client = client.clone();
-
             let results = client
                 .query(n_query.clone())
                 .await
