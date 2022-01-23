@@ -50,8 +50,6 @@ pub fn scroll_query(
 
             pending_hits.extend(results.hits.into_iter());
 
-            assert!(results.count > 0);
-
             n_query.from += results.count;
             page_end_reached = n_query.from >= results.total;
 
