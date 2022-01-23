@@ -1,6 +1,6 @@
 use std::io::SeekFrom;
 
-use futures::{TryStream, TryStreamExt};
+use futures::TryStreamExt;
 
 use menmos::*;
 
@@ -88,12 +88,10 @@ async fn menmos_dir_api() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
 
-    let mut results = Vec::new();
-    while let Some(v) = dir_a.list().try_next().await? {
-        results.push(v);
-    }
-
+    let results = dir_a.list().try_collect::<Vec<_>>().await?;
     assert_eq!(results.len(), 1);
+
+    // TODO: Delete our files.
 
     Ok(())
 }

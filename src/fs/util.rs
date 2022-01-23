@@ -47,6 +47,8 @@ pub fn scroll_query(
 
             let client = client.clone();
 
+            println!("doing query: {:?}", n_query);
+
             let results = client
                 .query(n_query.clone())
                 .await
@@ -66,12 +68,11 @@ pub fn scroll_query(
             n_query.from += results.count;
             page_end_reached = n_query.from >= results.total;
 
-            println!("next query from {}", n_query.from);
+            println!("next query from {:?}", n_query);
 
-            Ok(Some((
-                pending_hits.pop().unwrap(),
-                (n_query, pending_hits, page_end_reached, client),
-            )))
+            let r_val = pending_hits.pop().unwrap();
+            let ret_tuple = (n_query, pending_hits, page_end_reached, client);
+            Ok(Some((r_val, ret_tuple)))
         },
     )
 }
