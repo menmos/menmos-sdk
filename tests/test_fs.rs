@@ -1,4 +1,4 @@
-use std::io::SeekFrom;
+use std::{io::SeekFrom, time::Duration};
 
 use futures::TryStreamExt;
 
@@ -88,10 +88,13 @@ async fn menmos_dir_api() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
 
+    std::thread::sleep(Duration::from_millis(100));
+
     let results = dir_a.list().try_collect::<Vec<_>>().await?;
     assert_eq!(results.len(), 1);
 
-    // TODO: Delete our files.
+    client.fs.remove_dir_all(dir_a.id()).await?;
+    client.fs.remove_dir_all(dir_b.id()).await?;
 
     Ok(())
 }

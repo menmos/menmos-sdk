@@ -2,6 +2,7 @@ use std::io::SeekFrom;
 
 use bytes::Bytes;
 
+use interface::BlobMeta;
 use menmos_client::{Meta, Type};
 
 use snafu::prelude::*;
@@ -45,7 +46,11 @@ impl MenmosFile {
 
     pub async fn open(client: ClientRC, id: &str) -> Result<Self> {
         let metadata = util::get_meta(&client, id).await?;
-        if metadata.blob_type == Type::Directory {
+        Self::open_raw(client, id, metadata)
+    }
+
+    pub(crate) fn open_raw(client: ClientRC, id: &str, meta: BlobMeta) -> Result<Self> {
+        if meta.blob_type == Type::Directory {
             whatever!("is directory");
         }
 

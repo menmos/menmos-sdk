@@ -1,5 +1,6 @@
 use futures::{TryStream, TryStreamExt};
 
+use interface::BlobMeta;
 use menmos_client::{Meta, Query, Type};
 
 use snafu::prelude::*;
@@ -46,7 +47,11 @@ impl MenmosDirectory {
 
     pub async fn open(client: ClientRC, id: &str) -> Result<Self> {
         let metadata = util::get_meta(&client, id).await?;
-        if metadata.blob_type == Type::File {
+        Self::open_raw(client, id, metadata)
+    }
+
+    pub(crate) fn open_raw(client: ClientRC, id: &str, meta: BlobMeta) -> Result<Self> {
+        if meta.blob_type == Type::File {
             whatever!("is file");
         }
 
@@ -71,12 +76,23 @@ impl MenmosDirectory {
             let client = client.clone();
             async move {
                 let entry = if hit.meta.blob_type == Type::File {
-                    DirEntry::File(MenmosFile::open(client, &hit.id).await?)
+                    DirEntry::File(MenmosFile::open_raw(client, &hit.id, hit.meta)?)
                 } else {
-                    DirEntry::Directory(MenmosDirectory::open(client, &hit.id).await?)
+                    DirEntry::Directory(MenmosDirectory::open_raw(client, &hit.id, hit.meta)?)
                 };
                 Ok(entry)
             }
         }))
+    }
+
+    pub async fn is_empty(&self) -> Result<bool> {
+        let query = Query::default().and_parent(&self.blob_id).with_size(0);
+        let results = self
+            .client
+            .query(query)
+            .await
+            .with_whatever_context(|e| format!("failed to query: {e}"))?;
+
+        Ok(results.total == 0)
     }
 }
