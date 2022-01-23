@@ -19,6 +19,8 @@ pub struct Menmos {
     ///
     /// This interface should be used when manipulating concepts that are similar to files and folders.
     pub fs: fs::MenmosFs,
+
+    client: ClientRC,
 }
 
 impl Menmos {
@@ -31,8 +33,16 @@ impl Menmos {
             .with_whatever_context(|e| format!("failed to build client: {e}"))?;
 
         let client_rc = Arc::new(client);
-        let fs = fs::MenmosFs::new(client_rc);
+        let fs = fs::MenmosFs::new(client_rc.clone());
 
-        Ok(Self { fs })
+        Ok(Self {
+            fs,
+            client: client_rc,
+        })
+    }
+
+    /// Get a reference to the internal low-level menmos client.
+    pub fn client(&self) -> &Client {
+        self.client.as_ref()
     }
 }
