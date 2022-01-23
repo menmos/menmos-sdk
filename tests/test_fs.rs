@@ -58,6 +58,7 @@ async fn menmos_file_api() -> std::result::Result<(), Box<dyn std::error::Error>
 
 #[tokio::test]
 async fn menmos_dir_api() -> Result<(), Box<dyn std::error::Error>> {
+    // TODO: Add a way to specify a profile via env var.
     let client = Menmos::new("local").await?;
 
     let dir_a = client
