@@ -5,6 +5,7 @@ use menmos_client::Client;
 
 pub type ClientRC = Arc<Client>;
 
+/// The metadata of a blob.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FileMetadata {
     /// The name of this file/folder. Does not need to be unique.

@@ -1,8 +1,10 @@
+//! The filesystem SDK module.
+
 mod dir;
-use dir::MenmosDirectory;
+pub use dir::{DirEntry, MenmosDirectory};
 
 mod file;
-use file::MenmosFile;
+pub use file::MenmosFile;
 
 mod util;
 
@@ -14,17 +16,35 @@ use snafu::prelude::*;
 
 use crate::{ClientRC, FileMetadata, Result};
 
-use self::dir::DirEntry;
-
+/// The entrypoint structure of the filesystem SDK.
 pub struct MenmosFs {
     client: ClientRC,
 }
 
 impl MenmosFs {
+    #[doc(hidden)]
     pub fn new(client: ClientRC) -> Self {
         Self { client }
     }
 
+    /// Create a new file with the provided metadata.
+    ///
+    /// This function will return a handle to the created file, at offset 0.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use menmos::FileMetadata;
+    /// # use menmos::fs::MenmosFs;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
+    /// let handle = fs.create_file(FileMetadata::new("test.txt").with_tag("sdk_file"))
+    ///     .await
+    ///     .unwrap();
+    /// # }
+    /// ```
     pub async fn create_file(&self, metadata: FileMetadata) -> Result<MenmosFile> {
         MenmosFile::create(self.client.clone(), metadata).await
     }
@@ -37,6 +57,26 @@ impl MenmosFs {
             .with_whatever_context(|e| format!("Failed to delete: {}", e))
     }
 
+    /// Remove a file by its ID.
+    ///
+    /// If the specified blob ID does not exist, no error is returned and no operation
+    /// is performed.
+    ///
+    /// # Errors
+    ///
+    /// If this function is called with an ID corresponding to a blob that is _not_
+    /// a file, an error variant will be returned.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use menmos::fs::MenmosFs;
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
+    /// fs.remove_file("<a file blob ID>").await.unwrap();
+    /// # }
+    /// ```
     pub async fn remove_file<S: AsRef<str>>(&self, id: S) -> Result<()> {
         match util::get_meta_if_exists(&self.client, id.as_ref()).await? {
             Some(meta) => {
@@ -49,10 +89,49 @@ impl MenmosFs {
         }
     }
 
+    /// Create an empty directory with the provided metadata.
+    ///
+    /// This function will return a handle to the created directory.
+    /// # Examples
+    /// ```no_run
+    /// use menmos::FileMetadata;
+    /// # use menmos::fs::MenmosFs;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
+    /// let handle = fs.create_dir(FileMetadata::new("my_directory").with_tag("sdk_dir"))
+    ///     .await
+    ///     .unwrap();
+    /// # }
+    /// ```
     pub async fn create_dir(&self, metadata: FileMetadata) -> Result<MenmosDirectory> {
         MenmosDirectory::create(self.client.clone(), metadata).await
     }
 
+    /// Remove a directory by its ID.
+    ///
+    /// If the specified blob ID does not exist, no error is returned and no operation
+    /// is performed.
+    ///
+    /// # Errors
+    ///
+    /// If this function is called with an ID corresponding to a blob that is _not_
+    /// a directory, an error variant will be returned.
+    ///
+    /// If this function is called with an ID corresponding to a directory that is _not_
+    /// empty, an error variant will also be returned.
+    /// # Examples
+    /// ```no_run
+    /// # use menmos::fs::MenmosFs;
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
+    /// fs.remove_dir("<a dir blob ID>").await.unwrap();
+    /// # }
+    /// ```
     pub async fn remove_dir<S: AsRef<str>>(&self, id: S) -> Result<()> {
         match util::get_meta_if_exists(&self.client, id.as_ref()).await? {
             Some(meta) => {
@@ -71,6 +150,26 @@ impl MenmosFs {
         }
     }
 
+    /// Recursively remove a directory along with all its children.
+    ///
+    /// If the specified blob ID does not exist, no error is returned and no operation
+    /// is performed.
+    ///
+    /// # Errors
+    ///
+    /// If this function is called with an ID corresponding to a blob that is _not_
+    /// a directory, an error variant will be returned.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use menmos::fs::MenmosFs;
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
+    /// fs.remove_dir_all("<a dir blob ID>").await.unwrap();
+    /// # }
+    /// ```
     pub async fn remove_dir_all<S: AsRef<str>>(&self, id: S) -> Result<()> {
         match util::get_meta_if_exists(&self.client, id.as_ref()).await? {
             Some(meta) => {

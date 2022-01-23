@@ -21,12 +21,14 @@ fn make_dir_meta(m: FileMetadata) -> Meta {
     }
 }
 
+/// All types of blobs that can be found in a directory.
 #[derive(Clone)]
 pub enum DirEntry {
     File(MenmosFile),
     Directory(MenmosDirectory),
 }
 
+/// A handle to a directory in a menmos cluster.
 #[derive(Clone)]
 pub struct MenmosDirectory {
     blob_id: String,
@@ -34,6 +36,7 @@ pub struct MenmosDirectory {
 }
 
 impl MenmosDirectory {
+    #[doc(hidden)]
     pub async fn create(client: ClientRC, metadata: FileMetadata) -> Result<Self> {
         let metadata = make_dir_meta(metadata);
 
@@ -45,6 +48,7 @@ impl MenmosDirectory {
         Ok(Self { blob_id, client })
     }
 
+    #[doc(hidden)]
     pub async fn open(client: ClientRC, id: &str) -> Result<Self> {
         let metadata = util::get_meta(&client, id).await?;
         Self::open_raw(client, id, metadata)
@@ -61,10 +65,12 @@ impl MenmosDirectory {
         })
     }
 
+    /// Returns the ID of this directory.
     pub fn id(&self) -> &str {
         &self.blob_id
     }
 
+    /// Get a stream of entries present in this directory.
     pub fn list(&self) -> impl TryStream<Ok = DirEntry, Error = snafu::Whatever> + Unpin {
         let query = Query::default()
             .and_parent(&self.blob_id)
@@ -85,6 +91,7 @@ impl MenmosDirectory {
         }))
     }
 
+    /// Get whether this directory has any children.
     pub async fn is_empty(&self) -> Result<bool> {
         let query = Query::default().and_parent(&self.blob_id).with_size(0);
         let results = self

@@ -1,4 +1,4 @@
-mod fs;
+pub mod fs;
 mod typing;
 
 pub use typing::FileMetadata;
@@ -13,7 +13,11 @@ use menmos_client::Client;
 
 type Result<T> = std::result::Result<T, Whatever>;
 
+/// The menmos client.
 pub struct Menmos {
+    /// The filesystem interface to menmos.
+    ///
+    /// This interface should be used when manipulating concepts that are similar to files and folders.
     pub fs: fs::MenmosFs,
 }
 

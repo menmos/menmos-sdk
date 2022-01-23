@@ -21,6 +21,7 @@ fn make_file_meta(m: FileMetadata) -> Meta {
     }
 }
 
+/// A handle to a file in a menmos cluster.
 #[derive(Clone)]
 pub struct MenmosFile {
     blob_id: String,
@@ -29,6 +30,7 @@ pub struct MenmosFile {
 }
 
 impl MenmosFile {
+    #[doc(hidden)]
     pub async fn create(client: ClientRC, metadata: FileMetadata) -> Result<Self> {
         let metadata = make_file_meta(metadata);
 
@@ -44,6 +46,7 @@ impl MenmosFile {
         })
     }
 
+    #[doc(hidden)]
     pub async fn open(client: ClientRC, id: &str) -> Result<Self> {
         let metadata = util::get_meta(&client, id).await?;
         Self::open_raw(client, id, metadata)
@@ -61,10 +64,15 @@ impl MenmosFile {
         })
     }
 
+    /// Returns the ID of this file.
     pub fn id(&self) -> &str {
         &self.blob_id
     }
 
+    /// Write the contents of the provided buffer to the file, at the current offset.
+    ///
+    /// Returns the number of bytes written. If no errors occured,
+    /// the value returned will always be the length of the provided buffer.
     pub async fn write(&mut self, buf: &[u8]) -> Result<usize> {
         let buf = Bytes::copy_from_slice(buf);
         let buf_len = buf.len();
@@ -76,6 +84,13 @@ impl MenmosFile {
         Ok(buf_len)
     }
 
+    /// Seek to a new position in the file.
+    ///
+    /// Going past the end of the file will not return an error,
+    /// the offset will simply be truncated to the length of the file.
+    ///
+    /// # Errors
+    /// Seeking to a negative offset will return an error variant.
     pub async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         match pos {
             SeekFrom::Current(offset) => {
@@ -101,6 +116,14 @@ impl MenmosFile {
         Ok(self.offset)
     }
 
+    /// Read a number of bytes from the file.
+    ///
+    /// Returns the number of bytes read `0 <= n <= buf.len()`.
+    ///
+    /// If the number of bytes read is 0, the current offset is past the end of the file.
+    ///
+    /// If the number of bytes read is inferior to `buf.len()`, the no more bytes
+    /// could be read at this moment.
     pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let r = self
             .client
@@ -115,6 +138,9 @@ impl MenmosFile {
         Ok(r.len())
     }
 
+    /// Read bytes from the current offset to the end of the file.
+    ///
+    /// Returns the number of bytes read.
     pub async fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
         let metadata = util::get_meta(&self.client, &self.blob_id).await?;
         let out = self
@@ -127,6 +153,10 @@ impl MenmosFile {
         Ok(buf.len())
     }
 
+    /// Read bytes from the current offset to the end of the file and decode those bytes
+    /// as a UTF-8 string.
+    ///
+    /// Returns the number of bytes read.
     pub async fn read_to_string(&mut self, string: &mut String) -> Result<usize> {
         let mut v = Vec::new();
         self.read_to_end(&mut v).await?;
