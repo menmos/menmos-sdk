@@ -17,6 +17,7 @@ use snafu::prelude::*;
 use crate::{ClientRC, FileMetadata, Result};
 
 /// The entrypoint structure of the filesystem SDK.
+#[derive(Clone)]
 pub struct MenmosFs {
     client: ClientRC,
 }
@@ -38,7 +39,7 @@ impl MenmosFs {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let client = menmos_client::Client::new("a", "b", "c").await.unwrap();
     /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
     /// let handle = fs.create_file(FileMetadata::new("test.txt").with_tag("sdk_file"))
     ///     .await
@@ -72,7 +73,7 @@ impl MenmosFs {
     /// # use menmos::fs::MenmosFs;
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let client = menmos_client::Client::new("a", "b", "c").await.unwrap();
     /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
     /// fs.remove_file("<a file blob ID>").await.unwrap();
     /// # }
@@ -99,7 +100,7 @@ impl MenmosFs {
     ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let client = menmos_client::Client::new("a", "b", "c").await.unwrap();
     /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
     /// let handle = fs.create_dir(FileMetadata::new("my_directory").with_tag("sdk_dir"))
     ///     .await
@@ -127,7 +128,7 @@ impl MenmosFs {
     /// # use menmos::fs::MenmosFs;
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let client = menmos_client::Client::new("a", "b", "c").await.unwrap();
     /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
     /// fs.remove_dir("<a dir blob ID>").await.unwrap();
     /// # }
@@ -165,7 +166,7 @@ impl MenmosFs {
     /// # use menmos::fs::MenmosFs;
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # let client = menmos_client::Client::new_with_profile("test").await.unwrap();
+    /// # let client = menmos_client::Client::new("a", "b", "c").await.unwrap();
     /// # let fs = MenmosFs::new(std::sync::Arc::new(client));
     /// fs.remove_dir_all("<a dir blob ID>").await.unwrap();
     /// # }
