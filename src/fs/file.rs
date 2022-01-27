@@ -7,7 +7,7 @@ use menmos_client::{Meta, Type};
 
 use snafu::prelude::*;
 
-use super::util;
+use crate::util;
 use crate::{ClientRC, FileMetadata, Result};
 
 fn make_file_meta(m: FileMetadata) -> Meta {

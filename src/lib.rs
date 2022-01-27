@@ -1,12 +1,17 @@
 pub mod fs;
+mod metadata_detector;
 mod profile;
+mod push;
 mod typing;
+mod util;
 
 pub use profile::{Config, Profile};
-
 pub use typing::FileMetadata;
+
+use metadata_detector::MetadataDetector;
 use typing::*;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time;
 
@@ -35,6 +40,8 @@ pub struct Menmos {
     pub fs: fs::MenmosFs,
 
     client: ClientRC,
+
+    metadata_detector: MetadataDetector,
 }
 
 impl Menmos {
@@ -42,9 +49,13 @@ impl Menmos {
         let client_rc = Arc::new(client);
         let fs = fs::MenmosFs::new(client_rc.clone());
 
+        // If this fails we shipped a bad library.
+        let metadata_detector = MetadataDetector::new().unwrap();
+
         Self {
             fs,
             client: client_rc,
+            metadata_detector,
         }
     }
 
@@ -54,20 +65,30 @@ impl Menmos {
             .with_host(profile.host)
             .with_username(profile.username)
             .with_password(profile.password)
-            .with_metadata_detection()
             .build()
             .await
             .with_whatever_context(|e| format!("failed to build client: {e}"))?;
         Ok(Self::new_with_client(client))
     }
 
+    /// Get a builder to configure the client.
     pub fn builder(profile: &str) -> MenmosBuilder {
         MenmosBuilder::new(profile.into())
     }
 
     /// Get a reference to the internal low-level menmos client.
     pub fn client(&self) -> &Client {
+        let v: Vec<PathBuf> = Vec::new();
         self.client.as_ref()
+    }
+
+    pub async fn push(
+        &self,
+        paths: &[Path],
+        tags: Vec<String>,
+        metadata: HashMap<String, String>,
+        parent_id: Option<String>,
+    ) -> Result<()> {
     }
 }
 

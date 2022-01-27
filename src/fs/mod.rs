@@ -6,8 +6,6 @@ pub use dir::{DirEntry, MenmosDirectory};
 mod file;
 pub use file::MenmosFile;
 
-mod util;
-
 use futures::TryStreamExt;
 
 use menmos_client::Type;
