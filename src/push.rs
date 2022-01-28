@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use menmos_client::{Meta, Type};
 use snafu::ResultExt;
 
+use crate::metadata_detector::MetadataDetectorRC;
 use crate::{ClientRC, Result};
 
 pub struct PushResult {
@@ -15,6 +16,7 @@ pub struct PushResult {
 pub(crate) async fn push_file<P: AsRef<Path>>(
     path: P,
     client: ClientRC,
+    metadata_detector: &MetadataDetectorRC,
     tags: Vec<String>,
     meta_map: HashMap<String, String>,
     blob_type: Type,
@@ -27,14 +29,9 @@ pub(crate) async fn push_file<P: AsRef<Path>>(
             .to_string_lossy()
             .to_string(),
         blob_type.clone(),
-    )
-    .with_meta(
-        "extension",
-        path.as_ref()
-            .extension()
-            .map(|e| e.to_string_lossy().to_string())
-            .unwrap_or_else(String::default),
     );
+
+    metadata_detector.populate(path.as_ref(), &mut meta)?;
 
     if blob_type == Type::File {
         meta = meta.with_size(path.as_ref().metadata().unwrap().len())

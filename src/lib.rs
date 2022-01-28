@@ -8,7 +8,7 @@ mod util;
 pub use profile::{Config, Profile};
 pub use typing::FileMetadata;
 
-use metadata_detector::MetadataDetector;
+use metadata_detector::{MetadataDetector, MetadataDetectorRC};
 use typing::*;
 
 use std::collections::HashMap;
@@ -46,7 +46,7 @@ pub struct Menmos {
 
     client: ClientRC,
 
-    metadata_detector: MetadataDetector,
+    metadata_detector: MetadataDetectorRC,
 }
 
 impl Menmos {
@@ -55,7 +55,7 @@ impl Menmos {
         let fs = fs::MenmosFs::new(client_rc.clone());
 
         // If this fails we shipped a bad library.
-        let metadata_detector = MetadataDetector::new().unwrap();
+        let metadata_detector = Arc::new(MetadataDetector::new().unwrap());
 
         Self {
             fs,
@@ -83,7 +83,6 @@ impl Menmos {
 
     /// Get a reference to the internal low-level menmos client.
     pub fn client(&self) -> &Client {
-        let v: Vec<PathBuf> = Vec::new();
         self.client.as_ref()
     }
 
@@ -96,6 +95,7 @@ impl Menmos {
         parent_id: Option<String>,
     ) -> impl TryStream<Ok = push::PushResult, Error = snafu::Whatever> {
         let client = self.client.clone();
+        let metadata_detector = self.metadata_detector.clone();
 
         try_stream! {
             let mut working_stack = Vec::new();
@@ -103,12 +103,13 @@ impl Menmos {
 
             while let Some((parent_maybe, file_path)) = working_stack.pop(){
                 if file_path.is_file() {
-                    let blob_id = push::push_file(file_path.clone(), client.clone(), tags.clone(), metadata.clone(), Type::File, parent_maybe.clone()).await?;
+                    let blob_id = push::push_file(file_path.clone(), client.clone(), &metadata_detector, tags.clone(), metadata.clone(), Type::File, parent_maybe.clone()).await?;
                     yield push::PushResult{source_path: file_path, blob_id, parent_id: parent_maybe.clone()};
                 } else {
                     let directory_id: String = push::push_file(
                         file_path.clone(),
                         client.clone(),
+                        &metadata_detector,
                         tags.clone(),
                         metadata.clone(),
                         Type::Directory,
@@ -165,7 +166,6 @@ impl MenmosBuilder {
     pub async fn build(self) -> Result<Menmos> {
         let profile = load_profile_from_config(&self.profile)?;
         let mut builder = Client::builder()
-            .with_metadata_detection()
             .with_host(profile.host)
             .with_username(profile.username)
             .with_password(profile.password);

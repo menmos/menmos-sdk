@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use menmos_client::Meta;
 
@@ -15,7 +15,7 @@ impl MetadataDetector {
     pub fn new() -> Result<Self> {
         let bytes = include_bytes!("data/mime-types.json");
         let mime_types = serde_json::from_slice(bytes)
-            .with_whatever_context(|e| "failed to read mimetypes JSON: {e}")?;
+            .with_whatever_context(|e| format!("failed to read mimetypes JSON: {e}"))?;
 
         Ok(Self { mime_types })
     }
@@ -44,23 +44,30 @@ impl MetadataDetector {
     }
 }
 
-#[test]
-fn detect_file_mime_type() {
-    let path = "foo.txt";
-    let metadata_detector = MetadataDetector::new().unwrap();
+pub type MetadataDetectorRC = Arc<MetadataDetector>;
 
-    let mime_type = metadata_detector.detect_mime_type(path);
+#[cfg(test)]
+mod tests {
+    use super::MetadataDetector;
 
-    assert!(mime_type.is_some());
-    assert_eq!(mime_type.unwrap(), "text/plain");
-}
+    #[test]
+    fn detect_file_mime_type() {
+        let path = "foo.txt";
+        let metadata_detector = MetadataDetector::new().unwrap();
 
-#[test]
-fn detect_no_mime_type() {
-    let path = "foo.invalid";
-    let metadata_detector = MetadataDetector::new().unwrap();
+        let mime_type = metadata_detector.detect_mime_type(path);
 
-    let mime_type = metadata_detector.detect_mime_type(path);
+        assert!(mime_type.is_some());
+        assert_eq!(mime_type.unwrap(), "text/plain");
+    }
 
-    assert!(mime_type.is_none());
+    #[test]
+    fn detect_no_mime_type() {
+        let path = "foo.invalid";
+        let metadata_detector = MetadataDetector::new().unwrap();
+
+        let mime_type = metadata_detector.detect_mime_type(path);
+
+        assert!(mime_type.is_none());
+    }
 }

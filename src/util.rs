@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use futures::TryStream;
 
 use interface::{BlobMeta, Hit};
