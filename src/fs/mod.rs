@@ -12,6 +12,7 @@ use menmos_client::Type;
 
 use snafu::prelude::*;
 
+use crate::util;
 use crate::{ClientRC, FileMetadata, Result};
 
 /// The entrypoint structure of the filesystem SDK.

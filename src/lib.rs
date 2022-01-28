@@ -1,7 +1,7 @@
 pub mod fs;
 mod metadata_detector;
 mod profile;
-mod push;
+pub mod push;
 mod typing;
 mod util;
 
@@ -11,14 +11,19 @@ pub use typing::FileMetadata;
 use metadata_detector::MetadataDetector;
 use typing::*;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time;
 
+use async_stream::try_stream;
+
+use futures::TryStream;
+
+use menmos_client::{Client, Type};
+
 use snafu::prelude::*;
 use snafu::Whatever;
-
-use menmos_client::Client;
 
 type Result<T> = std::result::Result<T, Whatever>;
 
@@ -82,13 +87,43 @@ impl Menmos {
         self.client.as_ref()
     }
 
-    pub async fn push(
+    /// Recursively push a sequence of files and/or directories to the menmos cluster.
+    pub fn push_files(
         &self,
-        paths: &[Path],
+        paths: Vec<PathBuf>,
         tags: Vec<String>,
         metadata: HashMap<String, String>,
         parent_id: Option<String>,
-    ) -> Result<()> {
+    ) -> impl TryStream<Ok = push::PushResult, Error = snafu::Whatever> {
+        let client = self.client.clone();
+
+        try_stream! {
+            let mut working_stack = Vec::new();
+            working_stack.extend(paths.into_iter().map(|path| (parent_id.clone(), path)));
+
+            while let Some((parent_maybe, file_path)) = working_stack.pop(){
+                if file_path.is_file() {
+                    let blob_id = push::push_file(file_path.clone(), client.clone(), tags.clone(), metadata.clone(), Type::File, parent_maybe.clone()).await?;
+                    yield push::PushResult{source_path: file_path, blob_id, parent_id: parent_maybe.clone()};
+                } else {
+                    let directory_id: String = push::push_file(
+                        file_path.clone(),
+                        client.clone(),
+                        tags.clone(),
+                        metadata.clone(),
+                        Type::Directory,
+                        parent_maybe,
+                    )
+                    .await?;
+
+                    // Add this directory's children to the working stack.
+                    let read_dir_result: Result<std::fs::ReadDir> = file_path.read_dir().with_whatever_context(|e| format!("failed to read directory: {e}"));
+                    for child in read_dir_result?.filter_map(|f| f.ok()) {
+                        working_stack.push((Some(directory_id.clone()), child.path()));
+                    }
+                }
+            }
+        }
     }
 }
 
