@@ -5,6 +5,7 @@ pub mod push;
 mod typing;
 mod util;
 
+pub use menmos_client::Query;
 pub use profile::{Config, Profile};
 pub use typing::FileMetadata;
 
@@ -19,6 +20,7 @@ use std::time;
 use async_stream::try_stream;
 
 use futures::TryStream;
+use interface::Hit;
 
 use menmos_client::{Client, Type};
 
@@ -84,6 +86,11 @@ impl Menmos {
     /// Get a reference to the internal low-level menmos client.
     pub fn client(&self) -> &Client {
         self.client.as_ref()
+    }
+
+    /// Get a stream of results for a given query.
+    pub fn query(&self, query: Query) -> impl TryStream<Ok = Hit, Error = snafu::Whatever> + Unpin {
+        util::scroll_query(query, &self.client)
     }
 
     /// Recursively push a sequence of files and/or directories to the menmos cluster.

@@ -26,8 +26,8 @@ pub async fn get_meta(client: &ClientRC, blob_id: &str) -> Result<BlobMeta> {
 pub fn scroll_query(
     query: Query,
     client: &ClientRC,
-) -> impl TryStream<Ok = Hit, Error = snafu::Whatever> {
-    futures::stream::try_unfold(
+) -> impl TryStream<Ok = Hit, Error = snafu::Whatever> + Unpin {
+    Box::pin(futures::stream::try_unfold(
         (query, Vec::<Hit>::new(), false, client.clone()),
         move |(mut n_query, mut pending_hits, mut page_end_reached, client)| async move {
             if let Some(hit) = pending_hits.pop() {
@@ -58,5 +58,5 @@ pub fn scroll_query(
                 Ok(None)
             }
         },
-    )
+    ))
 }
