@@ -50,7 +50,9 @@ impl MenmosFile {
 
     #[doc(hidden)]
     pub async fn open(client: ClientRC, id: &str) -> Result<Self> {
-        let metadata = util::get_meta(&client, id).await.context(FileOpenSnafu)?;
+        let metadata = util::get_meta(&client, id).await.context(FileOpenSnafu {
+            blob_id: String::from(id),
+        })?;
         Self::open_raw(client, id, metadata)
     }
 

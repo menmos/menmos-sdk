@@ -25,11 +25,14 @@ pub enum FsError {
         blob_id: String,
     },
 
+    #[snafu(display("failed to open file '{}': {}", blob_id, source))]
     FileOpenError {
         source: util::UtilError,
+        blob_id: String,
     },
 
     // TODO: add source: ClientError once its exposed in menmos-client >= 0.1.0
+    #[snafu(display("failed to write to file"))]
     FileWriteError,
 
     // TODO: add source: ClientError once its exposed in menmos-client >= 0.1.0
@@ -38,9 +41,10 @@ pub enum FsError {
         blob_id: String,
     },
 
-    #[snafu(display("failed to remove file: {}", source))]
+    #[snafu(display("failed to remove file '{}': {}", blob_id, source))]
     FileRemoveError {
         source: util::UtilError,
+        blob_id: String,
     },
 
     // TODO: add source: ClientError once its exposed in menmos-client >= 0.1.0
@@ -53,8 +57,10 @@ pub enum FsError {
     },
 
     // TODO: add source: ClientError once its exposed in menmos-client >= 0.1.0
+    #[snafu(display("failed to list directory"))]
     DirListError,
 
+    #[snafu(display("failed to query directory"))]
     DirQueryError {
         source: util::UtilError,
     },

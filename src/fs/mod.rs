@@ -86,8 +86,9 @@ impl MenmosFs {
     pub async fn remove_file<S: AsRef<str>>(&self, id: S) -> Result<()> {
         match util::get_meta_if_exists(&self.client, id.as_ref())
             .await
-            .context(FileRemoveSnafu)?
-        {
+            .context(FileRemoveSnafu {
+                blob_id: String::from(id.as_ref()),
+            })? {
             Some(meta) => {
                 ensure!(
                     meta.blob_type == Type::File,
