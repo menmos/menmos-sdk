@@ -8,7 +8,7 @@ use snafu::prelude::*;
 use crate::{ClientRC, FileMetadata, Result};
 
 use super::file::MenmosFile;
-use super::util;
+use crate::util;
 
 fn make_dir_meta(m: FileMetadata) -> Meta {
     Meta {
