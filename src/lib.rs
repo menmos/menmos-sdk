@@ -58,7 +58,6 @@ pub enum MenmosError {
 
 type Result<T> = std::result::Result<T, MenmosError>;
 
-// Re-export internal error types.
 mod error {
     pub use super::MenmosError;
     pub use crate::fs::FsError;
