@@ -1,3 +1,3 @@
 mod detector;
 
-pub use detector::{MetadataDetector, MetadataDetectorRC};
+pub use detector::{MetadataDetector, MetadataDetectorError, MetadataDetectorRC};

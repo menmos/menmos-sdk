@@ -31,6 +31,11 @@ use snafu::Whatever;
 
 type Result<T> = std::result::Result<T, Whatever>;
 
+// Re-export internal error types.
+mod error {
+    pub use crate::metadata_detector::MetadataDetectorError;
+}
+
 fn load_profile_from_config(profile: &str) -> Result<Profile> {
     let config = Config::load()?;
     config

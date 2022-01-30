@@ -7,18 +7,37 @@ use serde::{Deserialize, Serialize};
 
 use snafu::prelude::*;
 
-use crate::Result;
-
 pub const CONFIG_DIR_NAME: &str = "menmos";
 
+#[derive(Debug, Snafu)]
+pub enum ProfileError {
+    #[snafu(display("couldn't find config directory"))]
+    MissingConfigDirectory,
+
+    #[snafu(display("failed to create config directory: {}", source))]
+    ConfigDirectoryCreateError { source: std::io::Error },
+
+    #[snafu(display("failed to read config: {}", source))]
+    ConfigReadError { source: std::io::Error },
+
+    #[snafu(display("failed to write config: {}", source))]
+    ConfigWriteError { source: std::io::Error },
+
+    #[snafu(display("failed to deserialize config: {}", source))]
+    ConfigDeserializeError { source: toml::de::Error },
+
+    #[snafu(display("failed to serialize config: {}", source))]
+    ConfigSerializeError { source: toml::ser::Error },
+}
+
+type Result<T> = std::result::Result<T, ProfileError>;
+
 fn get_config_path() -> Result<PathBuf> {
-    let root_config_dir =
-        dirs::config_dir().with_whatever_context(|| "missing config directory")?;
+    let root_config_dir = dirs::config_dir().with_context(MissingConfigDirectorySnafu)?;
 
     let cfg_dir_path = root_config_dir.join(CONFIG_DIR_NAME);
     if !cfg_dir_path.exists() {
-        fs::create_dir_all(&cfg_dir_path)
-            .with_whatever_context(|e| format!("failed to create config directory: {e}"))?;
+        fs::create_dir_all(&cfg_dir_path).with_context(ConfigDirectoryCreateSnafu)?;
     }
 
     Ok(cfg_dir_path.join("client").with_extension("toml"))
@@ -44,10 +63,8 @@ impl Config {
         let config_file = get_config_path()?;
 
         let cfg = if config_file.exists() {
-            let buf = fs::read(config_file)
-                .with_whatever_context(|e| format!("failed to read config: {e}"))?;
-            toml::from_slice(&buf)
-                .with_whatever_context(|e| format!("failed to deserialize config: {e}"))?
+            let buf = fs::read(config_file).context(ConfigReadSnafu)?;
+            toml::from_slice(&buf).context(ConfigDeserializeSnafu)?
         } else {
             Config::default()
         };
@@ -59,12 +76,9 @@ impl Config {
         self.profiles.insert(name.into(), profile);
 
         let config_file = get_config_path()?;
-        let encoded = toml::to_vec(&self)
-            .with_whatever_context(|e| format!("failed to serialize config: {e}"))?;
-        let mut f = fs::File::create(config_file)
-            .with_whatever_context(|e| format!("failed to create config file: {e}"))?;
-        f.write_all(&encoded)
-            .with_whatever_context(|e| format!("failed to write config: {e}"))?;
+        let encoded = toml::to_vec(&self).with_context(ConfigSerializeSnafu)?;
+        let mut f = fs::File::create(config_file).with_context(ConfigWriteSnafu)?;
+        f.write_all(&encoded).context(ConfigWriteSnafu)?;
         Ok(())
     }
 }
