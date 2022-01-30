@@ -22,6 +22,8 @@ use async_stream::try_stream;
 use futures::TryStream;
 use interface::Hit;
 
+pub use interface;
+
 use menmos_client::{Client, Type};
 
 use snafu::prelude::*;
