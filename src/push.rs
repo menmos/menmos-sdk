@@ -2,10 +2,24 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use menmos_client::{Meta, Type};
-use snafu::ResultExt;
 
+use snafu::prelude::*;
+
+use crate::error;
 use crate::metadata_detector::MetadataDetectorRC;
-use crate::{ClientRC, Result};
+use crate::ClientRC;
+
+#[derive(Debug, Snafu)]
+pub enum PushError {
+    MetadataPopulationError {
+        source: error::MetadataDetectorError,
+    },
+    // TODO: add source: ClientError once its exposed in menmos-client >= 0.1.0
+    #[snafu(display("failed to push '{:?}'", path))]
+    BlobPushError { path: PathBuf },
+}
+
+type Result<T> = std::result::Result<T, PushError>;
 
 pub struct PushResult {
     pub source_path: PathBuf,
@@ -31,7 +45,9 @@ pub(crate) async fn push_file<P: AsRef<Path>>(
         blob_type.clone(),
     );
 
-    metadata_detector.populate(path.as_ref(), &mut meta)?;
+    metadata_detector
+        .populate(path.as_ref(), &mut meta)
+        .context(MetadataPopulationSnafu)?;
 
     if blob_type == Type::File {
         meta = meta.with_size(path.as_ref().metadata().unwrap().len())
@@ -52,7 +68,9 @@ pub(crate) async fn push_file<P: AsRef<Path>>(
     let item_id = client
         .push(path.as_ref(), meta)
         .await
-        .with_whatever_context(|e| format!("failed to push [{:?}]: {}", path.as_ref(), e))?;
+        .map_err(|_| PushError::BlobPushError {
+            path: PathBuf::from(path.as_ref()),
+        })?;
 
     Ok(item_id)
 }

@@ -1,9 +1,10 @@
 //! The filesystem SDK module.
 
 mod dir;
-pub use dir::{DirEntry, MenmosDirectory};
-
+mod error;
 mod file;
+
+pub use dir::{DirEntry, MenmosDirectory};
 pub use file::MenmosFile;
 
 use futures::TryStreamExt;
@@ -13,7 +14,10 @@ use menmos_client::Type;
 use snafu::prelude::*;
 
 use crate::util;
-use crate::{ClientRC, FileMetadata, Result};
+use crate::{ClientRC, FileMetadata};
+
+pub use error::FsError;
+use error::*;
 
 /// The entrypoint structure of the filesystem SDK.
 #[derive(Clone)]
@@ -54,7 +58,9 @@ impl MenmosFs {
         self.client
             .delete(String::from(id.as_ref()))
             .await
-            .with_whatever_context(|e| format!("Failed to delete: {}", e))
+            .map_err(|_| FsError::BlobDeleteError {
+                blob_id: id.as_ref().into(),
+            })
     }
 
     /// Remove a file by its ID.
@@ -78,11 +84,17 @@ impl MenmosFs {
     /// # }
     /// ```
     pub async fn remove_file<S: AsRef<str>>(&self, id: S) -> Result<()> {
-        match util::get_meta_if_exists(&self.client, id.as_ref()).await? {
+        match util::get_meta_if_exists(&self.client, id.as_ref())
+            .await
+            .context(FileRemoveSnafu)?
+        {
             Some(meta) => {
-                if meta.blob_type == Type::Directory {
-                    whatever!("can't delete blob: is directory");
-                }
+                ensure!(
+                    meta.blob_type == Type::File,
+                    ExpectedFileSnafu {
+                        blob_id: String::from(id.as_ref())
+                    }
+                );
                 self.remove_blob_unchecked(id).await
             }
             None => Ok(()),
@@ -133,17 +145,26 @@ impl MenmosFs {
     /// # }
     /// ```
     pub async fn remove_dir<S: AsRef<str>>(&self, id: S) -> Result<()> {
-        match util::get_meta_if_exists(&self.client, id.as_ref()).await? {
+        match util::get_meta_if_exists(&self.client, id.as_ref())
+            .await
+            .context(DirRemoveSnafu)?
+        {
             Some(meta) => {
-                if meta.blob_type == Type::File {
-                    whatever!("can't delete blob: is file");
-                }
+                ensure!(
+                    meta.blob_type == Type::Directory,
+                    ExpectedDirectorySnafu {
+                        blob_id: String::from(id.as_ref())
+                    }
+                );
 
                 let dir = MenmosDirectory::open_raw(self.client.clone(), id.as_ref(), meta)?;
 
-                if !dir.is_empty().await? {
-                    whatever!("cannot delete: directory is not empty");
-                }
+                ensure!(
+                    dir.is_empty().await?,
+                    DirIsNotEmptySnafu {
+                        blob_id: String::from(id.as_ref())
+                    }
+                );
                 self.remove_blob_unchecked(id).await
             }
             None => Ok(()),
@@ -171,11 +192,17 @@ impl MenmosFs {
     /// # }
     /// ```
     pub async fn remove_dir_all<S: AsRef<str>>(&self, id: S) -> Result<()> {
-        match util::get_meta_if_exists(&self.client, id.as_ref()).await? {
+        match util::get_meta_if_exists(&self.client, id.as_ref())
+            .await
+            .context(DirRemoveSnafu)?
+        {
             Some(meta) => {
-                if meta.blob_type == Type::File {
-                    whatever!("can't delete blob: is file");
-                }
+                ensure!(
+                    meta.blob_type == Type::Directory,
+                    ExpectedDirectorySnafu {
+                        blob_id: String::from(id.as_ref())
+                    }
+                );
 
                 let dir = MenmosDirectory::open_raw(self.client.clone(), id.as_ref(), meta)?;
 

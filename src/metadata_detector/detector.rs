@@ -20,7 +20,7 @@ pub struct MetadataDetector {
 impl MetadataDetector {
     pub fn new() -> Result<Self> {
         let bytes = include_bytes!("data/mime-types.json");
-        let mime_types = serde_json::from_slice(bytes).with_context(MimetypeJsonSnafu)?;
+        let mime_types = serde_json::from_slice(bytes).context(MimetypeJsonSnafu)?;
         Ok(Self { mime_types })
     }
 

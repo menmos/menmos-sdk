@@ -33,11 +33,11 @@ pub enum ProfileError {
 type Result<T> = std::result::Result<T, ProfileError>;
 
 fn get_config_path() -> Result<PathBuf> {
-    let root_config_dir = dirs::config_dir().with_context(MissingConfigDirectorySnafu)?;
+    let root_config_dir = dirs::config_dir().context(MissingConfigDirectorySnafu)?;
 
     let cfg_dir_path = root_config_dir.join(CONFIG_DIR_NAME);
     if !cfg_dir_path.exists() {
-        fs::create_dir_all(&cfg_dir_path).with_context(ConfigDirectoryCreateSnafu)?;
+        fs::create_dir_all(&cfg_dir_path).context(ConfigDirectoryCreateSnafu)?;
     }
 
     Ok(cfg_dir_path.join("client").with_extension("toml"))
@@ -76,8 +76,8 @@ impl Config {
         self.profiles.insert(name.into(), profile);
 
         let config_file = get_config_path()?;
-        let encoded = toml::to_vec(&self).with_context(ConfigSerializeSnafu)?;
-        let mut f = fs::File::create(config_file).with_context(ConfigWriteSnafu)?;
+        let encoded = toml::to_vec(&self).context(ConfigSerializeSnafu)?;
+        let mut f = fs::File::create(config_file).context(ConfigWriteSnafu)?;
         f.write_all(&encoded).context(ConfigWriteSnafu)?;
         Ok(())
     }
