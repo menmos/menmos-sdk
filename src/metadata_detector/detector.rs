@@ -4,7 +4,13 @@ use menmos_client::Meta;
 
 use snafu::prelude::*;
 
-use crate::Result;
+#[derive(Debug, Snafu)]
+pub enum MetadataDetectorError {
+    #[snafu(display("failed to deserialize mimetype data: {}", source))]
+    MimetypeJsonError { source: serde_json::Error },
+}
+
+type Result<T> = std::result::Result<T, MetadataDetectorError>;
 
 #[derive(Clone)]
 pub struct MetadataDetector {
@@ -14,9 +20,7 @@ pub struct MetadataDetector {
 impl MetadataDetector {
     pub fn new() -> Result<Self> {
         let bytes = include_bytes!("data/mime-types.json");
-        let mime_types = serde_json::from_slice(bytes)
-            .with_whatever_context(|e| format!("failed to read mimetypes JSON: {e}"))?;
-
+        let mime_types = serde_json::from_slice(bytes).context(MimetypeJsonSnafu)?;
         Ok(Self { mime_types })
     }
 

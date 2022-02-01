@@ -19,7 +19,7 @@ use std::time;
 
 use async_stream::try_stream;
 
-use futures::TryStream;
+use futures::{TryStream, TryStreamExt};
 use interface::Hit;
 
 pub use interface;
@@ -27,17 +27,54 @@ pub use interface;
 use menmos_client::{Client, Type};
 
 use snafu::prelude::*;
-use snafu::Whatever;
 
-type Result<T> = std::result::Result<T, Whatever>;
+#[derive(Debug, Snafu)]
+pub enum MenmosError {
+    ConfigLoad {
+        source: error::ProfileError,
+    },
+
+    #[snafu(display("profile '{}' does not exist", profile))]
+    ProfileLoad {
+        profile: String,
+    },
+
+    // TODO: add source: ClientError once its exposed in menmos-client >= 0.1.0
+    #[snafu(display("failed to build client"))]
+    ClientBuild,
+
+    FilePush {
+        source: error::PushError,
+    },
+
+    DirectoryRead {
+        source: std::io::Error,
+    },
+
+    Query {
+        source: util::UtilError,
+    },
+}
+
+type Result<T> = std::result::Result<T, MenmosError>;
+
+mod error {
+    pub use super::MenmosError;
+    pub use crate::fs::FsError;
+    pub use crate::metadata_detector::MetadataDetectorError;
+    pub use crate::profile::ProfileError;
+    pub use crate::push::PushError;
+}
 
 fn load_profile_from_config(profile: &str) -> Result<Profile> {
-    let config = Config::load()?;
+    let config = Config::load().context(ConfigLoadSnafu)?;
     config
         .profiles
         .get(profile)
         .cloned()
-        .with_whatever_context(|| format!("missing profile: {profile}"))
+        .context(ProfileLoadSnafu {
+            profile: String::from(profile),
+        })
 }
 
 /// The menmos client.
@@ -76,7 +113,7 @@ impl Menmos {
             .with_password(profile.password)
             .build()
             .await
-            .with_whatever_context(|e| format!("failed to build client: {e}"))?;
+            .map_err(|_| MenmosError::ClientBuild)?;
         Ok(Self::new_with_client(client))
     }
 
@@ -91,8 +128,8 @@ impl Menmos {
     }
 
     /// Get a stream of results for a given query.
-    pub fn query(&self, query: Query) -> impl TryStream<Ok = Hit, Error = snafu::Whatever> + Unpin {
-        util::scroll_query(query, &self.client)
+    pub fn query(&self, query: Query) -> impl TryStream<Ok = Hit, Error = MenmosError> + Unpin {
+        util::scroll_query(query, &self.client).map_err(|e| MenmosError::Query { source: e })
     }
 
     /// Recursively push a sequence of files and/or directories to the menmos cluster.
@@ -102,7 +139,7 @@ impl Menmos {
         tags: Vec<String>,
         metadata: HashMap<String, String>,
         parent_id: Option<String>,
-    ) -> impl TryStream<Ok = push::PushResult, Error = snafu::Whatever> {
+    ) -> impl TryStream<Ok = push::PushResult, Error = MenmosError> {
         let client = self.client.clone();
         let metadata_detector = self.metadata_detector.clone();
 
@@ -112,7 +149,7 @@ impl Menmos {
 
             while let Some((parent_maybe, file_path)) = working_stack.pop(){
                 if file_path.is_file() {
-                    let blob_id = push::push_file(file_path.clone(), client.clone(), &metadata_detector, tags.clone(), metadata.clone(), Type::File, parent_maybe.clone()).await?;
+                    let blob_id = push::push_file(file_path.clone(), client.clone(), &metadata_detector, tags.clone(), metadata.clone(), Type::File, parent_maybe.clone()).await.map_err(|e| MenmosError::FilePush{source: e})?;
                     yield push::PushResult{source_path: file_path, blob_id, parent_id: parent_maybe.clone()};
                 } else {
                     let directory_id: String = push::push_file(
@@ -124,10 +161,10 @@ impl Menmos {
                         Type::Directory,
                         parent_maybe,
                     )
-                    .await?;
+                    .await.context(FilePushSnafu)?;
 
                     // Add this directory's children to the working stack.
-                    let read_dir_result: Result<std::fs::ReadDir> = file_path.read_dir().with_whatever_context(|e| format!("failed to read directory: {e}"));
+                    let read_dir_result: Result<std::fs::ReadDir> = file_path.read_dir().map_err(|e| MenmosError::DirectoryRead{source: e});
                     for child in read_dir_result?.filter_map(|f| f.ok()) {
                         working_stack.push((Some(directory_id.clone()), child.path()));
                     }
@@ -194,7 +231,7 @@ impl MenmosBuilder {
         let client = builder
             .build()
             .await
-            .with_whatever_context(|e| format!("failed to build client: {e}"))?;
+            .map_err(|_| MenmosError::ClientBuild)?;
 
         Ok(Menmos::new_with_client(client))
     }

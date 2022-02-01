@@ -8,7 +8,9 @@ use menmos_client::{Meta, Type};
 use snafu::prelude::*;
 
 use crate::util;
-use crate::{ClientRC, FileMetadata, Result};
+use crate::{ClientRC, FileMetadata};
+
+use super::error::*;
 
 fn make_file_meta(m: FileMetadata) -> Meta {
     Meta {
@@ -37,7 +39,7 @@ impl MenmosFile {
         let blob_id = client
             .create_empty(metadata)
             .await
-            .with_whatever_context(|e| format!("failed to create file: {e}"))?;
+            .map_err(|_| FsError::FileCreateError)?;
 
         Ok(Self {
             blob_id,
@@ -48,14 +50,19 @@ impl MenmosFile {
 
     #[doc(hidden)]
     pub async fn open(client: ClientRC, id: &str) -> Result<Self> {
-        let metadata = util::get_meta(&client, id).await?;
+        let metadata = util::get_meta(&client, id).await.context(FileOpenSnafu {
+            blob_id: String::from(id),
+        })?;
         Self::open_raw(client, id, metadata)
     }
 
     pub(crate) fn open_raw(client: ClientRC, id: &str, meta: BlobMeta) -> Result<Self> {
-        if meta.blob_type == Type::Directory {
-            whatever!("is directory");
-        }
+        ensure!(
+            meta.blob_type == Type::File,
+            ExpectedFileSnafu {
+                blob_id: String::from(id)
+            }
+        );
 
         Ok(Self {
             blob_id: String::from(id),
@@ -79,7 +86,7 @@ impl MenmosFile {
         self.client
             .write(&self.blob_id, self.offset, buf)
             .await
-            .with_whatever_context(|e| format!("failed to write to file: {e}"))?;
+            .map_err(|_| FsError::FileWriteError)?;
         self.offset += buf_len as u64;
         Ok(buf_len)
     }
@@ -95,21 +102,20 @@ impl MenmosFile {
         match pos {
             SeekFrom::Current(offset) => {
                 let new_offset = self.offset as i64 + offset;
-                if new_offset < 0 {
-                    whatever!("seek reached negative offset");
-                }
+                ensure!(new_offset >= 0, NegativeOffsetSnafu);
                 self.offset = new_offset as u64;
             }
             SeekFrom::Start(new_offset) => {
                 self.offset = new_offset;
             }
             SeekFrom::End(relative) => {
-                let metadata = util::get_meta(&self.client, &self.blob_id).await?;
+                let metadata = util::get_meta(&self.client, &self.blob_id)
+                    .await
+                    .context(SeekMetaSnafu)?;
+
                 let end_offset = metadata.size as i64;
                 let new_offset = end_offset + relative;
-                if new_offset < 0 {
-                    whatever!("seek reached negative offset");
-                }
+                ensure!(new_offset >= 0, NegativeOffsetSnafu);
                 self.offset = new_offset as u64;
             }
         }
@@ -132,7 +138,9 @@ impl MenmosFile {
                 (self.offset, (self.offset + buf.len() as u64) - 1),
             )
             .await
-            .with_whatever_context(|e| format!("failed to read from file: {e}"))?;
+            .map_err(|_| FsError::FileReadError {
+                blob_id: self.blob_id.clone(),
+            })?;
         buf.copy_from_slice(&r);
         self.offset += r.len() as u64;
         Ok(r.len())
@@ -142,12 +150,16 @@ impl MenmosFile {
     ///
     /// Returns the number of bytes read.
     pub async fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
-        let metadata = util::get_meta(&self.client, &self.blob_id).await?;
+        let metadata = util::get_meta(&self.client, &self.blob_id)
+            .await
+            .context(SeekMetaSnafu)?;
         let out = self
             .client
             .read_range(&self.blob_id, (self.offset, metadata.size))
             .await
-            .with_whatever_context(|e| format!("failed to read from file: {e}"))?;
+            .map_err(|_| FsError::FileReadError {
+                blob_id: self.blob_id.clone(),
+            })?;
         *buf = out;
         self.offset += buf.len() as u64;
         Ok(buf.len())
@@ -163,8 +175,7 @@ impl MenmosFile {
 
         let buf_read = v.len();
 
-        *string =
-            String::from_utf8(v).with_whatever_context(|_| "buffer value is not valid UTF-8")?;
+        *string = String::from_utf8(v).context(BufferEncodingSnafu)?;
 
         Ok(buf_read)
     }
