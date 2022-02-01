@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use menmos_client::Client;
@@ -55,4 +56,16 @@ impl FileMetadata {
         self.size = size;
         self
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct UploadRequest {
+    /// The path of the file to upload.
+    pub path: PathBuf,
+
+    pub metadata: HashMap<String, String>,
+
+    pub tags: Vec<String>,
+
+    pub parent_id: Option<String>,
 }
