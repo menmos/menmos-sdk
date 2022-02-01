@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use menmos_client::{Meta, Type};
 
@@ -7,7 +6,7 @@ use snafu::prelude::*;
 
 use crate::error;
 use crate::metadata_detector::MetadataDetectorRC;
-use crate::ClientRC;
+use crate::{ClientRC, UploadRequest};
 
 #[derive(Debug, Snafu)]
 pub enum PushError {
@@ -27,17 +26,15 @@ pub struct PushResult {
     pub parent_id: Option<String>,
 }
 
-pub(crate) async fn push_file<P: AsRef<Path>>(
-    path: P,
+pub(crate) async fn push_file(
     client: ClientRC,
     metadata_detector: &MetadataDetectorRC,
-    tags: Vec<String>,
-    meta_map: HashMap<String, String>,
     blob_type: Type,
-    parent: Option<String>,
+    request: UploadRequest,
 ) -> Result<String> {
     let mut meta = Meta::new(
-        path.as_ref()
+        request
+            .path
             .file_name()
             .unwrap()
             .to_string_lossy()
@@ -46,30 +43,30 @@ pub(crate) async fn push_file<P: AsRef<Path>>(
     );
 
     metadata_detector
-        .populate(path.as_ref(), &mut meta)
+        .populate(&request.path, &mut meta)
         .context(MetadataPopulationSnafu)?;
 
     if blob_type == Type::File {
-        meta = meta.with_size(path.as_ref().metadata().unwrap().len())
+        meta = meta.with_size(request.path.metadata().unwrap().len())
     }
 
-    if let Some(parent) = parent {
+    if let Some(parent) = request.parent_id {
         meta = meta.with_parent(parent);
     }
 
-    for tag in tags.iter() {
+    for tag in request.tags.iter() {
         meta = meta.with_tag(tag);
     }
 
-    for (k, v) in meta_map.iter() {
+    for (k, v) in request.metadata.iter() {
         meta = meta.with_meta(k, v);
     }
 
     let item_id = client
-        .push(path.as_ref(), meta)
+        .push(&request.path, meta)
         .await
         .map_err(|_| PushError::BlobPushError {
-            path: PathBuf::from(path.as_ref()),
+            path: request.path.clone(),
         })?;
 
     Ok(item_id)

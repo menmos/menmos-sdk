@@ -7,13 +7,11 @@ mod util;
 
 pub use menmos_client::Query;
 pub use profile::{Config, Profile};
-pub use typing::FileMetadata;
+pub use typing::{FileMetadata, UploadRequest};
 
 use metadata_detector::{MetadataDetector, MetadataDetectorRC};
 use typing::*;
 
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time;
 
@@ -135,42 +133,40 @@ impl Menmos {
     /// Recursively push a sequence of files and/or directories to the menmos cluster.
     pub fn push_files(
         &self,
-        paths: Vec<PathBuf>,
-        tags: Vec<String>,
-        metadata: HashMap<String, String>,
-        parent_id: Option<String>,
-    ) -> impl TryStream<Ok = push::PushResult, Error = MenmosError> {
+        requests: Vec<UploadRequest>,
+    ) -> impl TryStream<Ok = push::PushResult, Error = MenmosError> + Unpin {
         let client = self.client.clone();
         let metadata_detector = self.metadata_detector.clone();
 
-        try_stream! {
+        Box::pin(try_stream! {
             let mut working_stack = Vec::new();
-            working_stack.extend(paths.into_iter().map(|path| (parent_id.clone(), path)));
+            working_stack.extend(requests);
 
-            while let Some((parent_maybe, file_path)) = working_stack.pop(){
-                if file_path.is_file() {
-                    let blob_id = push::push_file(file_path.clone(), client.clone(), &metadata_detector, tags.clone(), metadata.clone(), Type::File, parent_maybe.clone()).await.map_err(|e| MenmosError::FilePush{source: e})?;
-                    yield push::PushResult{source_path: file_path, blob_id, parent_id: parent_maybe.clone()};
+            while let Some(upload_request) = working_stack.pop(){
+                if upload_request.path.is_file() {
+                    let source_path = upload_request.path.clone();
+                    let parent_id = upload_request.parent_id.clone();
+                    let blob_id = push::push_file(client.clone(), &metadata_detector, Type::File, upload_request).await.map_err(|e| MenmosError::FilePush{source: e})?;
+                    yield push::PushResult{source_path, blob_id, parent_id};
                 } else {
                     let directory_id: String = push::push_file(
-                        file_path.clone(),
                         client.clone(),
                         &metadata_detector,
-                        tags.clone(),
-                        metadata.clone(),
                         Type::Directory,
-                        parent_maybe,
-                    )
+                        upload_request.clone()                    )
                     .await.context(FilePushSnafu)?;
 
                     // Add this directory's children to the working stack.
-                    let read_dir_result: Result<std::fs::ReadDir> = file_path.read_dir().map_err(|e| MenmosError::DirectoryRead{source: e});
+                    let read_dir_result: Result<std::fs::ReadDir> = upload_request.path.read_dir().map_err(|e| MenmosError::DirectoryRead{source: e});
                     for child in read_dir_result?.filter_map(|f| f.ok()) {
-                        working_stack.push((Some(directory_id.clone()), child.path()));
+                        let mut req_clone = upload_request.clone();
+                        req_clone.path = child.path().clone();
+                        req_clone.parent_id = Some(directory_id.clone());
+                        working_stack.push(req_clone);
                     }
                 }
             }
-        }
+        })
     }
 }
 
