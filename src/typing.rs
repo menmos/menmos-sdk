@@ -63,9 +63,12 @@ pub struct UploadRequest {
     /// The path of the file to upload.
     pub path: PathBuf,
 
+    /// The metadata of the file to upload.
     pub metadata: HashMap<String, String>,
 
+    /// The tags of the file to upload.
     pub tags: Vec<String>,
 
+    /// The parent id of the file to upload.
     pub parent_id: Option<String>,
 }
